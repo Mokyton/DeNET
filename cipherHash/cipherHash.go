@@ -1,4 +1,4 @@
-package hardcodeHash
+package cipherHash
 
 import (
 	"bytes"

@@ -1,56 +1,56 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/Mokyton/DeNET/hardcodeHash"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"log"
+	"github.com/Mokyton/DeNET/cipherHash"
+	"io/ioutil"
 	"os"
 )
 
-type account struct {
-	address  string
-	password string
-}
-
-type wallet struct {
-}
-
 func main() {
-	acc, err := CreateAccount()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(acc)
+	//acc := account.New()
+	//if isAccountExist() {
+	//
+	//} else {
+	//	err := acc.CreateAccount([]byte("CRINGE"))
+	//	_ = acc.GetPublicKeyAndAddress()
+	//	if err != nil {
+	//		log.Fatal(err)
+	//	}
+	//}
+	fmt.Println(checkPassword([]byte("CRINGE")))
 }
 
-func CreateAccount() (account, error) {
-	var password []byte
-	fmt.Scan(&password)
-	pass := sha256.Sum256(password)
-	passHash := fmt.Sprintf("%x\n", pass)
-	encodedPassHash, err := hardcodeHash.Encrypt(hardcodeHash.KEY, []byte(passHash))
-	file, err := os.Create("hardcodedPass/encodedPassHash.txt")
+func checkPassword(enteredPass []byte) (bool, error) {
+	data, err := ioutil.ReadFile("./storage/accountHash/encodedPassHash.txt")
 	if err != nil {
-		return account{}, err
+		return false, err
 	}
-	_, err = file.Write(encodedPassHash)
+
+	passFromDB, err := cipherHash.Decrypt(cipherHash.KEY, data)
 	if err != nil {
-		return account{}, err
+		return false, err
 	}
-	address, err := CreateWallet(passHash)
-	if err != nil {
-		return account{}, err
-	}
-	return account{address: address, password: passHash}, nil
+
+	enteredHash := sha256.Sum256(enteredPass)
+	passHex := fmt.Sprintf("%x", enteredHash)
+
+	return bytes.Compare(passFromDB, []byte(passHex)) == 0, nil
+
 }
 
-func CreateWallet(passphrase string) (string, error) {
-	ks := keystore.NewKeyStore("./wallets", keystore.StandardScryptN, keystore.StandardScryptP)
-	account, err := ks.NewAccount(passphrase)
-	if err != nil {
-		return "", err
+//files, err := ioutil.ReadDir("./storage/wallets")
+//if err != nil {
+//log.Fatal(err)
+//}
+//
+//fmt.Println(files[0].Name())
+
+func isAccountExist() bool {
+	if _, err := os.Stat("./storage/wallets"); os.IsNotExist(err) {
+		return false
 	}
-	return account.Address.Hex(), nil
+	return true
 }
