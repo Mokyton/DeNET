@@ -7,9 +7,9 @@ Need to implement:
 2) The password hash must be stored encrypted in the file
 3) The data in the hash file must be encrypted using AES
 
-##GUID
+GUID
 
-##Makefile
+Makefile
 
 USE:
 
