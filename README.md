@@ -8,7 +8,9 @@ Need to implement:
 3) The data in the hash file must be encrypted using AES
 
 ##GUID
+
 ###Makefile
+
 USE:
 
 1) make build - to build the project
