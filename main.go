@@ -1,56 +1,40 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"fmt"
-	"github.com/Mokyton/DeNET/cipherHash"
-	"io/ioutil"
+	"github.com/Mokyton/DeNET/account"
+	"log"
 	"os"
 )
 
 func main() {
-	//acc := account.New()
-	//if isAccountExist() {
-	//
-	//} else {
-	//	err := acc.CreateAccount([]byte("CRINGE"))
-	//	_ = acc.GetPublicKeyAndAddress()
-	//	if err != nil {
-	//		log.Fatal(err)
-	//	}
-	//}
-	fmt.Println(checkPassword([]byte("CRINGE")))
-}
-
-func checkPassword(enteredPass []byte) (bool, error) {
-	data, err := ioutil.ReadFile("./storage/accountHash/encodedPassHash.txt")
-	if err != nil {
-		return false, err
+	var password []byte
+	var login []byte
+	acc := account.New()
+	if isAccountExist() {
+		greetingToAccess(password, login)
+		res, err := acc.SignIn(password, login)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !res {
+			fmt.Println("--- Wrong login or password")
+			fmt.Println("--- Please try again later")
+			os.Exit(0)
+		}
+		fmt.Println("--- Congratulations you are logged in!")
+		fmt.Println("--- This is your public key:")
+		fmt.Println(acc.PubKey)
+	} else {
+		greetingCreateAcc(password)
+		err := acc.CreateAccount(password)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("--- This is your wallet address! Use it as login next time:")
+		fmt.Println(acc.Address)
+		fmt.Println("--- This is your public key:")
+		fmt.Println(acc.PubKey)
 	}
 
-	passFromDB, err := cipherHash.Decrypt(cipherHash.KEY, data)
-	if err != nil {
-		return false, err
-	}
-
-	enteredHash := sha256.Sum256(enteredPass)
-	passHex := fmt.Sprintf("%x", enteredHash)
-
-	return bytes.Compare(passFromDB, []byte(passHex)) == 0, nil
-
-}
-
-//files, err := ioutil.ReadDir("./storage/wallets")
-//if err != nil {
-//log.Fatal(err)
-//}
-//
-//fmt.Println(files[0].Name())
-
-func isAccountExist() bool {
-	if _, err := os.Stat("./storage/wallets"); os.IsNotExist(err) {
-		return false
-	}
-	return true
 }

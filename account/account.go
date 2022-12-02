@@ -1,9 +1,9 @@
 package account
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/Mokyton/DeNET/account/wallet"
 	"github.com/Mokyton/DeNET/cipherHash"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,31 +13,32 @@ import (
 )
 
 type account struct {
-	Login    string
-	Password string
-	Wallet   wallet.Ks
+	Address string
+	PubKey  string
 }
 
 func New() account {
-	ks := wallet.New()
-	return account{Wallet: ks}
+	return account{}
 }
 
 func (acc *account) CreateAccount(password []byte) error {
 	pass := sha256.Sum256(password)
-	acc.Password = fmt.Sprintf("%x", pass)
+	passPhrase := fmt.Sprintf("%x", pass)
 
-	err := acc.savePassHash([]byte(acc.Password))
+	log := sha256.Sum256([]byte(acc.Address))
+	logPhrase := fmt.Sprintf("%x", log)
+
+	err := acc.savePassHash([]byte(passPhrase))
 	if err != nil {
 		return err
 	}
 
-	acc.Login, err = acc.Wallet.CreateWallet(acc.Password)
+	err = acc.CreateWallet(passPhrase)
 	if err != nil {
 		return err
 	}
 
-	err = acc.saveLoginHash([]byte(acc.Login))
+	err = acc.saveLoginHash([]byte(logPhrase))
 	if err != nil {
 		return err
 	}
@@ -45,27 +46,64 @@ func (acc *account) CreateAccount(password []byte) error {
 	return nil
 }
 
-func (acc *account) GetPublicKeyAndAddress() error {
-	files, err := ioutil.ReadDir("./storage/wallets")
+func (acc *account) CreateWallet(passphrase string) error {
+	ks := keystore.NewKeyStore("./storage/wallets", keystore.StandardScryptN, keystore.StandardScryptP)
+	_, err := ks.NewAccount(passphrase)
 	if err != nil {
 		return err
 	}
-	fmt.Println(files[0].Name())
-	b, err := ioutil.ReadFile(files[0].Name())
+	err = acc.getPublicKeyAndAddress(passphrase)
 	if err != nil {
 		return err
 	}
 
-	key, err := keystore.DecryptKey(b, acc.Password)
+	return nil
+}
+
+func (acc *account) SignIn(password []byte, login []byte) (bool, error) {
+	cL, err := acc.checkLogin(login)
+	if err != nil {
+		return false, err
+	}
+	cP, err := acc.checkPassword(password)
+	if err != nil {
+		return false, err
+	}
+
+	pass := sha256.Sum256(password)
+	passPhrase := fmt.Sprintf("%x", pass)
+
+	if !cL || !cP {
+		return false, nil
+	}
+
+	if err = acc.getPublicKeyAndAddress(passPhrase); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (acc *account) getPublicKeyAndAddress(passphrase string) error {
+	files, err := ioutil.ReadDir("./storage/wallets")
+	if err != nil {
+		return err
+	}
+
+	b, err := ioutil.ReadFile("storage/wallets/" + files[0].Name())
+	if err != nil {
+		return err
+	}
+
+	key, err := keystore.DecryptKey(b, passphrase)
 	if err != nil {
 		return err
 	}
 
 	pk := crypto.FromECDSAPub(&key.PrivateKey.PublicKey)
-	acc.Wallet.PublicKey = hexutil.Encode(pk)
-	acc.Wallet.Address = crypto.PubkeyToAddress(key.PrivateKey.PublicKey).Hex()
-	fmt.Println(acc.Wallet.Address)
-	fmt.Println(acc.Wallet.PublicKey)
+	acc.PubKey = hexutil.Encode(pk)[2:]
+	acc.Address = crypto.PubkeyToAddress(key.PrivateKey.PublicKey).Hex()[2:]
+
 	return nil
 }
 
@@ -97,4 +135,39 @@ func (acc *account) saveLoginHash(loginHash []byte) error {
 	}
 
 	return nil
+}
+
+func (acc *account) checkPassword(enteredPass []byte) (bool, error) {
+	data, err := ioutil.ReadFile("./storage/accountHash/encodedPassHash.txt")
+	if err != nil {
+		return false, err
+	}
+
+	passFromDB, err := cipherHash.Decrypt(cipherHash.KEY, data)
+	if err != nil {
+		return false, err
+	}
+
+	enteredHash := sha256.Sum256(enteredPass)
+	passHex := fmt.Sprintf("%x", enteredHash)
+
+	return bytes.Compare(passFromDB, []byte(passHex)) == 0, nil
+
+}
+
+func (acc *account) checkLogin(enteredLogin []byte) (bool, error) {
+	data, err := ioutil.ReadFile("./storage/accountHash/encodedLoginHash.txt")
+	if err != nil {
+		return false, err
+	}
+
+	loginFromDB, err := cipherHash.Decrypt(cipherHash.KEY, data)
+	if err != nil {
+		return false, err
+	}
+
+	enteredHash := sha256.Sum256(enteredLogin)
+	loginHex := fmt.Sprintf("%x", enteredHash)
+
+	return bytes.Compare(loginFromDB, []byte(loginHex)) == 0, nil
 }
